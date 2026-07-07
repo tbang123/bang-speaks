@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bang Speaks — AI Speech Coach</title>
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bang Speaks">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#060f1e">
+<style>
+  :root{
+    --bg:#060f1e; --panel:#0d1b30; --panel2:#122440; --line:#1e3a5f;
+    --text:#e8eef7; --muted:#8fa3bd; --accent:#38bdf8; --accent2:#0ea5e9;
+    --good:#34d399; --warn:#fbbf24; --bad:#f87171; --gold:#f5c542;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}
+  header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid var(--line)}
+  .logo{font-size:22px;font-weight:800;letter-spacing:.5px}
+  .logo span{color:var(--accent)}
+  .tagline{color:var(--muted);font-size:13px}
+  main{max-width:1200px;margin:0 auto;padding:24px}
+
+  /* ===== Setup screen ===== */
+  .setup h1{font-size:34px;line-height:1.2;margin-bottom:8px;text-align:center}
+  .setup h1 em{color:var(--accent);font-style:normal}
+  .setup .sub{color:var(--muted);text-align:center;margin-bottom:28px;font-size:15px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:820px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+  .card h3{font-size:15px;color:var(--accent);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+  .coach-row{display:flex;gap:14px}
+  .coach{flex:1;background:var(--panel2);border:2px solid var(--line);border-radius:var(--radius);padding:18px;text-align:center;cursor:pointer;transition:.15s}
+  .coach:hover{border-color:var(--accent)}
+  .coach.sel{border-color:var(--accent);background:#0f2c4d}
+  .coach .avatar{font-size:42px}
+  .coach .name{font-weight:700;margin-top:6px}
+  .coach .desc{font-size:12px;color:var(--muted);margin-top:4px}
+  .modes{display:flex;flex-direction:column;gap:10px}
+  .mode{display:flex;align-items:center;gap:12px;background:var(--panel2);border:2px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;transition:.15s}
+  .mode:hover{border-color:var(--accent)}
+  .mode.sel{border-color:var(--accent);background:#0f2c4d}
+  .mode .ic{font-size:22px}
+  .mode .t{font-weight:700;font-size:14px}
+  .mode .d{font-size:12px;color:var(--muted)}
+  label{font-size:13px;color:var(--muted);display:block;margin:12px 0 6px}
+  select,input[type=text]{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:14px}
+  .btn{display:inline-block;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#04121f;border:none;border-radius:10px;padding:14px 28px;font-size:16px;font-weight:800;cursor:pointer;transition:.15s}
+  .btn:hover{filter:brightness(1.12)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+  .btn.small{padding:9px 16px;font-size:13px}
+  .center{text-align:center;margin-top:26px}
+  .warnbox{background:#3a2a08;border:1px solid var(--warn);color:var(--warn);border-radius:10px;padding:12px 16px;font-size:14px;margin-bottom:20px;display:none}
+
+  /* ===== Session screen ===== */
+  .session{display:none;grid-template-columns:1fr 320px;gap:20px}
+  @media(max-width:900px){.session{grid-template-columns:1fr}}
+  .chat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;height:70vh;min-height:480px}
+  .msgs{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px}
+  .msg{max-width:82%;padding:12px 16px;border-radius:14px;font-size:15px;line-height:1.5;white-space:pre-wrap}
+  .msg.coach{background:var(--panel2);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px}
+  .msg.user{background:#0f3a5f;align-self:flex-end;border-bottom-right-radius:4px}
+  .msg .who{font-size:11px;color:var(--accent);font-weight:700;letter-spacing:1px;margin-bottom:4px;text-transform:uppercase}
+  .msg.user .who{color:#8fd4ff}
+  .controls{border-top:1px solid var(--line);padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .micbtn{width:64px;height:64px;border-radius:50%;border:none;font-size:26px;cursor:pointer;background:var(--panel2);color:var(--text);border:2px solid var(--line);transition:.15s;flex-shrink:0}
+  .micbtn.listening{background:#7f1d1d;border-color:var(--bad);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(248,113,113,.5)}70%{box-shadow:0 0 0 16px rgba(248,113,113,0)}100%{box-shadow:0 0 0 0 rgba(248,113,113,0)}}
+  .status{font-size:13px;color:var(--muted);flex:1;min-width:140px}
+  .status b{color:var(--text)}
+  .interim{font-style:italic;color:var(--muted);font-size:13px;padding:0 18px 8px;min-height:20px}
+
+  .stats{display:flex;flex-direction:column;gap:14px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .stat .lbl{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+  .stat .val{font-size:30px;font-weight:800;margin-top:4px}
+  .stat .hint{font-size:12px;color:var(--muted);margin-top:2px}
+  .gauge{height:10px;background:var(--panel2);border-radius:6px;margin-top:10px;overflow:hidden;position:relative}
+  .gauge .fill{height:100%;width:0%;border-radius:6px;background:var(--good);transition:width .4s,background .4s}
+  .voicebar{height:8px;background:var(--panel2);border-radius:5px;overflow:hidden}
+  .voicebar .vfill{height:100%;width:0%;background:var(--accent);transition:width .08s}
+  .statrow{display:flex;gap:14px}
+  .statrow .stat{flex:1}
+
+  /* ===== Summary ===== */
+  .overlay{position:fixed;inset:0;background:rgba(2,8,18,.85);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .summary{background:var(--panel);border:1px solid var(--accent);border-radius:var(--radius);padding:30px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto}
+  .summary h2{color:var(--accent);margin-bottom:6px}
+  .summary .score{font-size:56px;font-weight:900;color:var(--gold);text-align:center;margin:14px 0 2px}
+  .summary .scorelbl{text-align:center;color:var(--muted);font-size:13px;margin-bottom:18px}
+  .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+  .sitem{background:var(--panel2);border-radius:10px;padding:12px;text-align:center}
+  .sitem .v{font-size:22px;font-weight:800}
+  .sitem .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+  .summary .fb{background:var(--panel2);border-left:3px solid var(--accent);border-radius:8px;padding:14px;font-size:14px;line-height:1.55;margin-bottom:18px;white-space:pre-wrap}
+  .histline{font-size:13px;color:var(--muted);padding:6px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="logo">BANG <span>SPEAKS</span> 🎙</div>
+    <div class="tagline">AI Speech Coach — smooth, clear, confident</div>
+  </div>
+  <button class="btn ghost small" id="btnHome" style="display:none">← End &amp; New Session</button>
+</header>
+
+<main>
+  <!-- ================= SETUP ================= -->
+  <section class="setup" id="setup">
+    <div class="warnbox" id="warnbox"></div>
+    <h1>Speak Smoothly, Clearly &amp; <em>Confidently</em></h1>
+    <p class="sub">Structured daily practice with live feedback on pacing, pausing, and filler words. Works best in Chrome or Edge with your microphone.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>1 · Choose your coach</h3>
+        <div class="coach-row">
+          <div class="coach sel" data-coach="marcus" onclick="pickCoach('marcus')">
+            <div class="avatar">👨🏾‍🏫</div><div class="name">Marcus</div>
+            <div class="desc">Calm, steady, direct</div>
+          </div>
+          <div class="coach" data-coach="zola" onclick="pickCoach('zola')">
+            <div class="avatar">👩🏾‍🏫</div><div class="name">Zola</div>
+            <div class="desc">Warm, encouraging, upbeat</div>
+          </div>
+        </div>
+        <label for="kvoiceSel">Neural voice character</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="kvoiceSel" style="flex:1">
+            <option value="auto">Auto — match selected coach</option>
+            <option value="am_michael">Marcus · Michael (calm, steady)</option>
+            <option value="am_fenrir">Marcus · Fenrir (deeper, dynamic)</option>
+            <option value="bm_george">Marcus · George (British, warm)</option>
+            <option value="af_heart">Zola · Heart (warm, natural)</option>
+            <option value="af_bella">Zola · Bella (bright, energetic)</option>
+            <option value="bf_emma">Zola · Emma (British, gentle)</option>
+          </select>
+          <button class="btn ghost small" id="btnVoicePreview" type="button">▶ Preview</button>
+        </div>
+        <label for="engineSel">Voice engine</label>
+        <select id="engineSel">
+          <option value="eleven">🌟 ElevenLabs — most human, real conversation feel (needs key)</option>
+          <option value="neural">🎧 Neural — human-like AI voice (free, one-time download)</option>
+          <option value="standard">⚡ Standard browser voice (instant, more robotic)</option>
+        </select>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input type="password" id="elKeyInput" placeholder="ElevenLabs API key (from elevenlabs.io → Profile)" style="flex:1">
+          <button class="btn ghost small" id="btnElSave" type="button">Save</button>
+        </div>
+        <div id="voiceStatus" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
+        <label for="voiceSel">Standard voice (used if neural is off or unavailable)</label>
+        <select id="voiceSel"></select>
+        <label for="micSel">Your microphone</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="micSel" style="flex:1"><option value="">System default</option></select>
+          <button class="btn ghost small" id="btnMicTest" type="button">🎤 Test</button>
+        </div>
+        <div class="voicebar" style="margin-top:8px"><div class="vfill" id="setupVfill"></div></div>
+        <div id="micHint" style="font-size:12px;color:var(--muted);margin-top:4px">Click Test, speak, and pick the microphone that makes the bar move.</div>
+        <label for="fearedInput">Feared words (optional, comma-separated — used in the Feared Words drill)</label>
+        <input type="text" id="fearedInput" placeholder="e.g. specifically, statistics, my name">
+      </div>
+      <div class="card">
+        <h3>2 · Choose your session</h3>
+        <div class="modes" id="modeList"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:20px">
+      <h3>3 · Coach intelligence (optional)</h3>
+      <div id="brainStatus" style="font-size:13px;color:var(--muted);margin-bottom:10px"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn ghost small" id="btnBrainLocal" type="button">⬇ Download free local AI (~1.8 GB, one-time)</button>
+        <input type="password" id="apiKeyInput" placeholder="…or paste a Claude API key (sk-ant-…)" style="flex:1;min-width:220px">
+        <button class="btn ghost small" id="btnKeySave" type="button">Save key</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">Without this, all drills and feedback still work — the coach just can't hold an open conversation or write personal affirmations. The key is stored only in your browser and sent only to Anthropic.</div>
+    </div>
+    <div class="center"><button class="btn" id="btnStart">🚀 Start My Session</button></div>
+  </section>
+
+  <!-- ================= SESSION ================= -->
+  <section class="session" id="session">
+    <div class="chat">
+      <div class="msgs" id="msgs"></div>
+      <div class="interim" id="interim"></div>
+      <div id="diagTxt" style="font-size:11px;color:#5a7194;padding:0 18px 6px"></div>
+      <div class="controls">
+        <button class="micbtn" id="micBtn" title="Hold a conversation">🎤</button>
+        <div class="status" id="statusTxt">Press the mic and start speaking. Pause for a few seconds (or press ✔) when you're done.</div>
+        <button class="btn ghost small" id="btnDone">✔ I'm done speaking</button>
+        <button class="btn ghost small" id="btnUpload" style="display:none">📁 Choose recording</button>
+        <input type="file" id="fileInput" accept="audio/*,video/*" style="display:none">
+        <button class="btn ghost small" id="btnRepeat">🔁 Repeat prompt</button>
+        <button class="btn small" id="btnEnd">🏁 End session</button>
+      </div>
+    </div>
+    <aside class="stats">
+      <div class="stat">
+        <div class="lbl">Mic level</div>
+        <div class="voicebar" style="margin-top:10px"><div class="vfill" id="vfill"></div></div>
+      </div>
+      <div class="stat" id="phaseCard" style="display:none">
+        <div class="lbl">Session phase</div>
+        <div class="val" id="phaseName" style="font-size:18px">–</div>
+        <div class="hint" id="phaseLeft"></div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Pace (words / min)</div>
+        <div class="val" id="wpmVal">–</div>
+        <div class="gauge"><div class="fill" id="wpmFill"></div></div>
+        <div class="hint">Target zone: 100–140 wpm</div>
+      </div>
+      <div class="statrow">
+        <div class="stat"><div class="lbl">Fillers</div><div class="val" id="fillVal">0</div><div class="hint">um, uh, like…</div></div>
+        <div class="stat"><div class="lbl">Pauses</div><div class="val" id="pauseVal">0</div><div class="hint">intentional = good</div></div>
+      </div>
+      <div class="statrow">
+        <div class="stat"><div class="lbl">Words</div><div class="val" id="wordVal">0</div></div>
+        <div class="stat"><div class="lbl">Time</div><div class="val" id="timeVal">0:00</div></div>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<!-- ================= SUMMARY ================= -->
+<div class="overlay" id="overlay">
+  <div class="summary" style="position:relative">
+    <button id="btnCloseSummary" title="Close" style="position:absolute;top:14px;right:14px;background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;width:34px;height:34px;font-size:16px;cursor:pointer">✕</button>
+    <h2>Session Complete 🎉</h2>
+    <div class="score" id="sScore">–</div>
+    <div class="scorelbl">Smooth Speech Score</div>
+    <div class="sgrid">
+      <div class="sitem"><div class="v" id="sWpm">–</div><div class="l">Avg pace (wpm)</div></div>
+      <div class="sitem"><div class="v" id="sWords">–</div><div class="l">Words spoken</div></div>
+      <div class="sitem"><div class="v" id="sFill">–</div><div class="l">Filler words</div></div>
+      <div class="sitem"><div class="v" id="sPause">–</div><div class="l">Pauses taken</div></div>
+    </div>
+    <div class="fb" id="sFb"></div>
+    <div id="sHist"></div>
+    <div class="center">
+      <button class="btn" onclick="location.reload()">Practice Again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   Bang Speaks — AI Speech Coach
+   Browser-only: Web Speech API (recognition + synthesis) + Web Audio.
+   ============================================================ */
+
+const $ = id => document.getElementById(id);
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+/* ---------- Config: coaches, modes, content ---------- */
+const COACHES = {
+  marcus:{name:"Marcus", kvoice:"am_michael", elvoice:"pNInz6obpgDQGcFmaJgB", genderHint:["google uk english male","google us english","male","david","mark","daniel","george","james","guy","alex","fred"], style:"calm"},
+  zola:{name:"Zola", kvoice:"af_heart", elvoice:"EXAVITQu4vr4xnSDxMaL", genderHint:["google uk english female","female","zira","samantha","susan","hazel","aria","jenny","victoria","karen","serena"], style:"warm"}
+};
+
+const FILLERS = ["um","uh","uhm","er","erm","like","you know","sort of","kind of","basically","actually","literally","i mean","so yeah"];
+
+const PASSAGES = [
+  "The quiet power of a pause is remarkable. When you slow down, breathe steadily, and finish each word fully, your listener leans in. Rushing tells the room you are nervous. Pausing tells the room you are in control.",
+  "Great speakers are not born; they are built, one deliberate practice session at a time. Every smooth sentence you deliver today rewires the pattern you will rely on tomorrow, in the meeting, in the interview, on the stage.",
+  "Confidence is not the absence of nerves. It is the decision to breathe, to slow your pace, and to trust your preparation. Your voice carries further when it is steady, and your ideas land harder when you give them room."
+];
+
+const TOPICS = [
+  "Tell me about a project you're proud of, as if this were a job interview.",
+  "Introduce yourself and your work in about sixty seconds, as you would at a networking event.",
+  "Describe your typical morning routine in detail, keeping a slow and steady pace.",
+  "Explain something you know well to a complete beginner.",
+  "You're in a meeting and disagree with a decision. Make your case calmly.",
+  "Describe your favourite place in the world and why it matters to you.",
+  "Give a sixty-second update on what you accomplished this week, as if reporting to leadership."
+];
+
+const AFFIRMATIONS = [
+  "I speak slowly, clearly, and with intention.",
+  "My breath is steady, and my voice is calm.",
+  "I finish every word fully. I own every pause.",
+  "Pressure does not rush me. I set the pace of the room.",
+  "Each day, my new speech pattern grows stronger.",
+  "I am a calm, confident, compelling communicator."
+];
+
+const MODES = [
+  {id:"structured", ic:"🗓", t:"Structured 30-Min Session", d:"Warm-up → technique → applied practice → close"},
+  {id:"free",   ic:"💬", t:"Free Practice",      d:"Talk about anything — get live coaching feedback"},
+  {id:"pacing", ic:"📖", t:"Pacing Drill",        d:"Read a passage aloud at a controlled pace"},
+  {id:"topics", ic:"🎤", t:"Impromptu Scenarios", d:"Interview, meeting & presentation prompts"},
+  {id:"feared", ic:"🎯", t:"Feared Words",        d:"Slow, extended practice on your trigger words"},
+  {id:"affirm", ic:"🌟", t:"Affirmation Session", d:"Guided identity reset — repeat after your coach"},
+  {id:"reset",  ic:"🧘", t:"Personal Reset",      d:"Custom affirmations for what you're facing today"},
+  {id:"analyze",ic:"📁", t:"Analyze a Recording", d:"Upload real meeting audio for coached feedback"}
+];
+
+/* ---------- State ---------- */
+let coachId="marcus", modeId="free", voices=[], recog=null, listening=false;
+let coachSpeaking=false, roundIdx=0, silenceTimer=null, sessionStart=0, timerInt=null;
+let interimText="";
+let audioCtx=null, analyser=null, micStream=null;
+
+const turn = { words:0, fillers:0, pauses:0, firstT:0, lastT:0, pauseMs:0, text:"" };
+const total = { words:0, fillers:0, pauses:0, activeMs:0, turns:0, wpmSamples:[] };
+
+function resetTurn(){ turn.words=0; turn.fillers=0; turn.pauses=0; turn.firstT=0; turn.lastT=0; turn.pauseMs=0; turn.text=""; }
+
+/* ---------- Setup UI ---------- */
+function pickCoach(id){
+  coachId=id;
+  document.querySelectorAll(".coach").forEach(c=>c.classList.toggle("sel",c.dataset.coach===id));
+  autoPickVoice();
+}
+window.pickCoach = pickCoach;
+
+MODES.forEach((m,i)=>{
+  const div=document.createElement("div");
+  div.className="mode"+(i===0?" sel":"");
+  div.innerHTML=`<div class="ic">${m.ic}</div><div><div class="t">${m.t}</div><div class="d">${m.d}</div></div>`;
+  div.onclick=()=>{ modeId=m.id; document.querySelectorAll(".mode").forEach(x=>x.classList.remove("sel")); div.classList.add("sel"); };
+  $("modeList").appendChild(div);
+});
+
+function loadVoices(){
+  voices = speechSynthesis.getVoices().filter(v=>v.lang.toLowerCase().startsWith("en"));
+  if(!voices.length) voices = speechSynthesis.getVoices();
+  const sel=$("voiceSel"); sel.innerHTML="";
+  voices.forEach((v,i)=>{ const o=document.createElement("option"); o.value=i; o.textContent=`${v.name} (${v.lang})`; sel.appendChild(o); });
+  autoPickVoice();
+}
+function autoPickVoice(){
+  const hints=COACHES[coachId].genderHint;
+  const idx=voices.findIndex(v=>hints.some(h=>v.name.toLowerCase().includes(h)));
+  if(idx>=0) $("voiceSel").value=idx;
+}
+speechSynthesis.onvoiceschanged = loadVoices;
+loadVoices();
+
+/* ---------- Microphone picker with live preview ---------- */
+let setupStream=null, setupCtx=null, setupLoop=false, lastLoudT=Date.now();
+function savedMicId(){ try{ return localStorage.getItem("bs_micId")||""; }catch(e){ return ""; } }
+async function openMic(deviceId){
+  if(deviceId){
+    try{ return await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:deviceId}}}); }
+    catch(e){ /* device gone — fall back to default */ }
+  }
+  /* Prefer the system-default recording device (deviceId "default") —
+     Chrome's bare {audio:true} can pick a different, possibly dead, mic. */
+  try{ return await navigator.mediaDevices.getUserMedia({audio:{deviceId:{exact:"default"}}}); }
+  catch(e){ return await navigator.mediaDevices.getUserMedia({audio:true}); }
+}
+async function refreshMicList(){
+  const devs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==="audioinput");
+  const sel=$("micSel"), keep=sel.value||savedMicId();
+  sel.innerHTML='<option value="">System default</option>';
+  devs.forEach(d=>{ const o=document.createElement("option"); o.value=d.deviceId; o.textContent=d.label||("Microphone "+(sel.options.length)); sel.appendChild(o); });
+  if([...sel.options].some(o=>o.value===keep)) sel.value=keep;
+}
+async function testMic(){
+  try{
+    if(setupStream) setupStream.getTracks().forEach(t=>t.stop());
+    setupStream=await openMic($("micSel").value||savedMicId());
+    await refreshMicList();
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const an=ctx.createAnalyser(); an.fftSize=512;
+    ctx.createMediaStreamSource(setupStream).connect(an);
+    const data=new Uint8Array(an.frequencyBinCount);
+    setupLoop=true;
+    (function loop(){
+      if(!setupLoop){ ctx.close(); return; }
+      an.getByteFrequencyData(data);
+      const avg=data.reduce((a,b)=>a+b,0)/data.length;
+      $("setupVfill").style.width=Math.min(100,avg*1.4)+"%";
+      requestAnimationFrame(loop);
+    })();
+    $("micHint").textContent="Speak now — the bar should move clearly. If it doesn't, pick another microphone.";
+  }catch(e){ $("micHint").textContent="Microphone error: "+e.name+" — allow mic access and try again."; }
+}
+$("btnMicTest").onclick=testMic;
+$("micSel").onchange=()=>{ try{localStorage.setItem("bs_micId",$("micSel").value);}catch(e){} if(setupStream) testMic(); };
+
+if(!SR){
+  const w=$("warnbox");
+  w.style.display="block";
+  w.textContent="⚠ Your browser doesn't support live speech recognition. Please open this app in Google Chrome for the full experience.";
+  $("btnStart").disabled=true;
+} else if(navigator.userAgent.includes("Edg/")){
+  const w=$("warnbox");
+  w.style.display="block";
+  w.innerHTML="⚠ <b>You're using Microsoft Edge.</b> Edge's speech recognition is unreliable and often returns nothing. Please open this app in <b>Google Chrome</b> — the launcher (Start Speech Coach.bat) now does this automatically.";
+} else if(location.protocol==="file:"){
+  const w=$("warnbox");
+  w.style.display="block";
+  w.innerHTML="💡 <b>Tip:</b> Chrome's speech recognition is unreliable for pages opened directly from disk. For best results, launch the app with <b>Start Speech Coach.bat</b> in this folder — it opens the same app at http://localhost:8737 where recognition is fully supported.";
+}
+
+/* ---------- Speech synthesis (coach voice) ---------- */
+/* Two engines: "neural" (Kokoro AI, runs locally in the browser) and
+   "standard" (built-in speechSynthesis). Neural falls back to standard. */
+let ttsEngine="neural"; try{ ttsEngine=localStorage.getItem("bs_engine")||(IS_MOBILE?"eleven":"neural"); }catch(e){}
+let kokoro=null, kokoroLoading=null, audioOut=null, activeSrcs=[], genToken=0, curUtter=null;
+$("engineSel").value=ttsEngine;
+$("engineSel").onchange=()=>{ ttsEngine=$("engineSel").value; try{localStorage.setItem("bs_engine",ttsEngine);}catch(e){} };
+
+async function loadKokoro(onProgress){
+  if(kokoro) return kokoro;
+  if(!kokoroLoading){
+    kokoroLoading=(async()=>{
+      const { KokoroTTS } = await import("https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/+esm");
+      const tryLoad=async(device,dtype)=>KokoroTTS.from_pretrained(
+        "onnx-community/Kokoro-82M-v1.0-ONNX",{dtype,device,progress_callback:onProgress});
+      try{
+        kokoro = navigator.gpu ? await tryLoad("webgpu","fp32") : await tryLoad("wasm","q8");
+      }catch(e){ kokoro = await tryLoad("wasm","q8"); }   /* WebGPU hiccup → CPU */
+      return kokoro;
+    })();
+    kokoroLoading.catch(()=>{ kokoroLoading=null; });
+  }
+  return kokoroLoading;
+}
+
+function silenceCoach(){
+  genToken++;                                   /* invalidate in-flight neural speech */
+  activeSrcs.forEach(s=>{ try{s.onended=null;s.stop();}catch(e){} });
+  activeSrcs=[];
+  if(curAudio){ try{curAudio.onended=null;curAudio.pause();}catch(e){} curAudio=null; }
+  if(curUtter){ curUtter.onend=null; curUtter.onerror=null; curUtter=null; }
+  speechSynthesis.cancel();
+  coachSpeaking=false;
+}
+
+/* The coach must MODEL the method it teaches: unhurried pace (~115 wpm)
+   and real, intentional silences. Text is split into "breath groups"
+   (clauses and sentences); each gets a deliberate pause after it. */
+const COACH_SPEED=0.85;
+/* Per-coach voice memory. A chosen voice applies ONLY to the coach it
+   belongs to (am_/bm_ = Marcus, af_/bf_ = Zola) — a Zola voice can never
+   leak onto Marcus again. */
+function kvMap(){ try{ return JSON.parse(localStorage.getItem("bs_kvoice2")||"{}"); }catch(e){ return {}; } }
+function coachVoice(){
+  const m=kvMap()[coachId];
+  return m || COACHES[coachId].kvoice;
+}
+/* migrate + clear the old single global override */
+try{
+  const legacy=localStorage.getItem("bs_kvoice");
+  if(legacy&&legacy!=="auto"){
+    const map=kvMap();
+    map[/^(am|bm)_/.test(legacy)?"marcus":"zola"]=legacy;
+    localStorage.setItem("bs_kvoice2",JSON.stringify(map));
+  }
+  localStorage.removeItem("bs_kvoice");
+}catch(e){}
+function elKey(){ try{ return localStorage.getItem("bs_elkey")||""; }catch(e){ return ""; } }
+let curAudio=null;
+async function speakEleven(text, cb){
+  const my=genToken;
+  const r=await fetch("https://api.elevenlabs.io/v1/text-to-speech/"+COACHES[coachId].elvoice+"?output_format=mp3_44100_128",{
+    method:"POST",
+    headers:{"content-type":"application/json","xi-api-key":elKey()},
+    body:JSON.stringify({ text, model_id:"eleven_turbo_v2_5",
+      voice_settings:{stability:0.45, similarity_boost:0.8, style:0.35} })
+  });
+  if(!r.ok) throw new Error("ElevenLabs "+r.status+(r.status===401?" (check your key)":""));
+  const blob=await r.blob();
+  if(genToken!==my) return;
+  const a=new Audio(URL.createObjectURL(blob));
+  curAudio=a;
+  a.onended=()=>{ if(genToken!==my) return; curAudio=null; coachSpeaking=false; if(cb) cb(); else if(listening) recogStart(); };
+  await a.play();
+  diag("");   /* clear any stale fallback message once real audio is playing */
+}
+function breathGroups(text){
+  const groups=[];
+  (text.match(/[^.!?…]+[.!?…]*\s*/g)||[text]).forEach(sent=>{
+    const s=sent.trim(); if(!s) return;
+    const endPause=/\?$/.test(s)?0.95 : /…$/.test(s)?1.15 : 0.75;
+    const clauses=s.split(/(?<=[,;:—])\s+/).map(c=>c.trim()).filter(Boolean);
+    /* merge tiny fragments so speech doesn't get choppy */
+    const merged=[];
+    clauses.forEach(c=>{
+      if(merged.length && (c.split(/\s+/).length<3 || merged[merged.length-1].split(/\s+/).length<3))
+        merged[merged.length-1]+=" "+c;
+      else merged.push(c);
+    });
+    merged.forEach((c,i)=>groups.push({text:c, pause:i<merged.length-1?0.4:endPause}));
+  });
+  return groups;
+}
+async function speakNeural(text, cb){
+  const my=genToken;
+  if(!audioOut) audioOut=new (window.AudioContext||window.webkitAudioContext)();
+  if(audioOut.state==="suspended"){ try{ await audioOut.resume(); }catch(e){} }
+  let nextT=0, pending=0, doneGen=false, fired=false;
+  const finish=()=>{ if(fired||genToken!==my) return; fired=true;
+    coachSpeaking=false; if(cb) cb(); else if(listening) recogStart(); };
+  const groups=breathGroups(text);
+  try{
+    let first=true;
+    for(const g of groups){
+      if(first){ diag(COACHES[coachId].name+" is preparing to speak…"); }
+      const audio=await kokoro.generate(g.text,{voice:coachVoice(),speed:COACH_SPEED});
+      if(first){ diag(""); first=false; }
+      if(genToken!==my) return;                 /* silenced while generating */
+      const buf=audioOut.createBuffer(1,audio.audio.length,audio.sampling_rate);
+      buf.getChannelData(0).set(audio.audio);
+      const src=audioOut.createBufferSource();
+      src.buffer=buf; src.connect(audioOut.destination);
+      nextT=Math.max(nextT,audioOut.currentTime+0.03);
+      src.start(nextT);
+      nextT+=buf.duration+g.pause;              /* the intentional pause */
+      activeSrcs.push(src); pending++;
+      const isLast=(g===groups[groups.length-1]);
+      src.onended=()=>{ pending--; if(doneGen&&pending===0){
+        if(isLast) finish(); else setTimeout(finish, 50); } };
+    }
+    doneGen=true; if(pending===0) finish();
+  }catch(e){
+    if(genToken!==my) return;
+    diag("neural voice error: "+e.message+" — using standard voice");
+    speakStandard(text,cb);
+  }
+}
+
+function speakStandard(text, cb){
+  const u=new SpeechSynthesisUtterance(text);
+  const v=voices[parseInt($("voiceSel").value||"0",10)];
+  if(v) u.voice=v;
+  u.rate=0.92; u.pitch=1;
+  const done=()=>{ curUtter=null; coachSpeaking=false; if(cb) cb(); else if(listening){ recogStart(); } };
+  u.onend=done; u.onerror=done;
+  curUtter=u;
+  speechSynthesis.speak(u);
+}
+
+function say(text, cb){
+  silenceCoach();               // never let a stale utterance's callback fire
+  coachSpeaking=true;
+  stopListening(true);
+  if(ttsEngine==="eleven" && elKey()){
+    speakEleven(text,cb).catch(e=>{
+      diag("ElevenLabs error: "+(e.message||e)+" — falling back");
+      if(kokoro) speakNeural(text,cb); else speakStandard(text,cb);
+    });
+  }
+  else if((ttsEngine==="neural"||ttsEngine==="eleven") && kokoro){ speakNeural(text,cb); }
+  else speakStandard(text,cb);
+}
+
+/* ---------- Chat UI ---------- */
+function addMsg(who,text){
+  const d=document.createElement("div");
+  d.className="msg "+(who==="user"?"user":"coach");
+  d.innerHTML=`<div class="who">${who==="user"?"You":COACHES[coachId].name}</div>`;
+  d.appendChild(document.createTextNode(text));
+  $("msgs").appendChild(d);
+  $("msgs").scrollTop=$("msgs").scrollHeight;
+}
+function coachSays(text, cb){ addMsg("coach",text); say(text,cb); }
+
+/* ---------- Speech recognition ---------- */
+let recogAlive=false, watchdog=null, useLocal=false;
+/* Fallback: download Chrome's offline speech pack and switch engines.
+   Rescues setups where the cloud recognizer is blocked (firewall/VPN/AV). */
+async function switchToOfflineEngine(){
+  $("statusTxt").innerHTML="⬇ Downloading the offline speech pack — this can take a minute…";
+  try{
+    const state=await SR.available({langs:["en-US"],processLocally:true});
+    if(state!=="available"){
+      const ok=await SR.install({langs:["en-US"],processLocally:true});
+      if(!ok){ $("statusTxt").innerHTML="<b>Couldn't install the offline speech pack.</b> Please update Chrome (Help → About) and try again."; return; }
+    }
+    useLocal=true; try{recog&&recog.abort&&recog.abort();}catch(e){} recog=null;
+    diag("engine: switched to offline recognition");
+    startListening();
+  }catch(e){
+    $("statusTxt").innerHTML="<b>Offline engine unavailable:</b> "+e.message+". Please update Chrome and try again.";
+  }
+}
+window.switchToOfflineEngine=switchToOfflineEngine;
+/* Start recognition on the USER-CHOSEN microphone track when supported
+   (Chrome 139+). Falls back to the browser-default mic otherwise. */
+function recogStart(){
+  try{
+    const tr=micStream&&micStream.getAudioTracks()[0];
+    if(tr&&tr.readyState==="live"){ recog.start(tr); return; }
+  }catch(e){ /* start(track) unsupported or already started */ }
+  try{ recog.start(); }catch(e){}
+}
+function diag(msg){
+  const el=$("diagTxt");
+  if(el){ el.textContent=msg; }
+}
+function initRecog(){
+  recog=new SR();
+  recog.continuous=true; recog.interimResults=true; recog.lang="en-US";
+  /* Chrome 139+ can default to ON-DEVICE recognition; if the language pack
+     isn't downloaded it ends instantly with no error. Force the cloud engine,
+     unless the user switched to the offline engine (useLocal). */
+  try{ if("processLocally" in recog) recog.processLocally=useLocal; }catch(e){}
+  recog.onstart   =()=>{ recogAlive=true;  diag("engine: started"); };
+  recog.onaudiostart =()=>{ diag("engine: hearing audio"); };
+  recog.onspeechstart=()=>{ diag("engine: speech detected ✓"); };
+  recog.onnomatch =()=>{ diag("engine: heard speech but couldn't transcribe"); };
+  recog.onresult=e=>{
+    if(coachSpeaking) return;
+    const now=Date.now();
+    if(!turn.firstT) turn.firstT=now;
+    else {
+      const gap=now-turn.lastT;
+      if(gap>1500){ turn.pauses++; turn.pauseMs+=gap; }
+    }
+    turn.lastT=now;
+    let interim="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const t=e.results[i][0].transcript;
+      if(e.results[i].isFinal){ turn.text+=t+" "; }
+      else interim+=t;
+    }
+    interimText=interim;
+    $("interim").textContent=interim;
+    analyzeTurn();
+    armSilenceTimer();
+  };
+  recog.onend=()=>{
+    recogAlive=false; diag("engine: stopped");
+    if(listening && !coachSpeaking){ setTimeout(()=>{ if(listening&&!coachSpeaking){ recogStart(); } },250); }
+  };
+  recog.onerror=e=>{
+    diag("engine error: "+e.error);
+    if(e.error==="not-allowed"||e.error==="service-not-allowed"){
+      listening=false; updateMicUI();
+      $("statusTxt").innerHTML="<b>Microphone or speech service blocked ("+e.error+").</b> Allow mic access in your browser and try again.";
+    } else if(e.error==="network"){
+      $("statusTxt").innerHTML="<b>Speech recognition network error.</b> The recognizer couldn't reach its service — check your connection, VPN, or firewall.";
+    } else if(e.error==="audio-capture"){
+      listening=false; updateMicUI();
+      $("statusTxt").innerHTML="<b>No microphone found.</b> Check that a mic is connected and selected.";
+    } else if(e.error==="language-not-supported"){
+      listening=false; updateMicUI();
+      $("statusTxt").innerHTML="<b>Language not supported</b> by this browser's recognizer. Please use Google Chrome.";
+    }
+    /* "no-speech" and "aborted" are normal — onend will restart */
+  };
+}
+function startListening(){
+  if(!recog) initRecog();
+  listening=true; resetTurn(); interimText=""; $("interim").textContent="";
+  recogStart();
+  updateMicUI();
+  clearTimeout(watchdog);
+  watchdog=setTimeout(()=>{
+    if(listening && !recogAlive && !coachSpeaking){
+      const canLocal=(typeof SR.available==="function" && typeof SR.install==="function" && !useLocal);
+      $("statusTxt").innerHTML="<b>⚠ The speech engine isn't responding.</b> "+
+        (location.protocol==="file:"
+          ? "This usually happens when the app is opened as a file. Please close this tab and start it with <b>Start Speech Coach.bat</b> in the same folder."
+          : (canLocal
+              ? "The online recognizer may be blocked on your network. <button class='btn small' onclick='switchToOfflineEngine()'>⬇ Switch to the offline engine</button>"
+              : "Try reloading the page. If it persists, check firewall/VPN, or update Chrome."));
+      diag("engine: no response after 7s (protocol: "+location.protocol+", engine: "+(useLocal?"offline":"online")+")");
+    }
+  },7000);
+}
+function stopListening(keepFlag){
+  if(!keepFlag) listening=false;
+  clearTimeout(silenceTimer);
+  if(recog){ try{recog.stop();}catch(e){} }
+  updateMicUI();
+}
+function updateMicUI(){
+  $("micBtn").classList.toggle("listening",listening);
+  $("statusTxt").innerHTML = listening
+    ? "🔴 <b>Listening…</b> speak naturally. Pause ~4s or press ✔ when finished."
+    : "Press the mic to speak.";
+}
+function armSilenceTimer(){
+  clearTimeout(silenceTimer);
+  silenceTimer=setTimeout(()=>{ if(listening && (turn.text.trim()||interimText.trim())) endTurn(); },4000);
+}
+
+/* ---------- Live analysis ---------- */
+function countFillers(text){
+  const t=" "+text.toLowerCase().replace(/[^a-z' ]/g," ")+" ";
+  let n=0;
+  FILLERS.forEach(f=>{ const re=new RegExp("\\s"+f.replace(/ /g,"\\s")+"\\s","g"); n+=(t.match(re)||[]).length; });
+  return n;
+}
+function turnWpm(){
+  const active=(turn.lastT-turn.firstT-turn.pauseMs);
+  if(active<3000) return 0;
+  return Math.round(turn.words/(active/60000));
+}
+function analyzeTurn(){
+  const full=(turn.text+" "+interimText).trim();
+  turn.words=full?full.split(/\s+/).length:0;
+  turn.fillers=countFillers(full);
+  const wpm=turnWpm();
+  $("wpmVal").textContent=wpm||"–";
+  const pct=Math.min(100,(wpm/200)*100);
+  const f=$("wpmFill"); f.style.width=pct+"%";
+  f.style.background = wpm===0?"var(--good)": wpm<90?"var(--warn)": wpm<=145?"var(--good)":"var(--bad)";
+  $("fillVal").textContent=turn.fillers;
+  $("pauseVal").textContent=turn.pauses;
+  $("wordVal").textContent=turn.words;
+}
+
+/* ---------- Coaching feedback engine ---------- */
+function feedbackFor(){
+  const wpm=turnWpm(), style=COACHES[coachId].style;
+  const bits=[];
+  const praise = style==="warm"
+    ? ["Beautiful work.","I love… what I'm hearing.","That was great effort.","Well done. Really."]
+    : ["Good work.","Solid effort.","Good round.","That… is progress."];
+  bits.push(praise[Math.floor(Math.random()*praise.length)]);
+
+  if(turn.words<8){
+    bits.push("That was quite short — give me a little more next time so I can properly assess your pacing.");
+    return bits.join(" ");
+  }
+  if(wpm>150) bits.push(`Your pace was about ${wpm} words per minute — that's rushing territory. Take a breath at each comma, extend your vowels slightly, and aim for around 120.`);
+  else if(wpm>=100&&wpm<=145) bits.push(`Your pace was about ${wpm} words per minute — right in the smooth zone. That's exactly the control we're building.`);
+  else if(wpm>0&&wpm<90) bits.push(`Your pace was about ${wpm} words per minute — nicely unhurried. You have room to add a touch more energy while keeping that control.`);
+
+  if(turn.fillers===0) bits.push("Zero filler words — excellent discipline.");
+  else if(turn.fillers<=2) bits.push(`Only ${turn.fillers} filler word${turn.fillers>1?"s":""} — when you feel one coming, replace it with a silent pause instead.`);
+  else bits.push(`I counted ${turn.fillers} filler words. Remember: a pause is always more powerful than an "um". Let the silence do the work.`);
+
+  if(turn.pauses>=2) bits.push(`You took ${turn.pauses} deliberate pauses — that's what commands a room.`);
+  else if(turn.words>25) bits.push("I'd like to hear more intentional pauses — a full beat of silence between ideas. It signals confidence, not hesitation.");
+
+  bits.push(style==="warm"?"Keep breathing low and steady. Ready for the next one?":"Reset your breath. Next round.");
+  return bits.join(" ");
+}
+
+/* ---------- Session flow per mode ---------- */
+function fearedWords(){
+  return $("fearedInput").value.split(",").map(s=>s.trim()).filter(Boolean);
+}
+function prompts(){
+  switch(modeId){
+    case "pacing": return PASSAGES.map(p=>`Read this passage aloud, slowly and deliberately. Extend the first sound of each sentence and pause fully at every full stop:\n\n“${p}”`);
+    case "topics": return shuffle(TOPICS).slice(0,4);
+    case "feared": {
+      const words=fearedWords();
+      if(!words.length) return ["You didn't enter any feared words on the setup screen, so let's practise these common tricky ones instead: specifically, statistics, particularly. Say each one three times — slowly, stretching the first sound. Ssss-pecifically."];
+      return words.map(w=>`Let's work on the word “${w}”. First, breathe out gently. Now say it three times, stretching the very first sound and keeping your airflow moving: ${w[0]}-${w[0]}-${w}. Then use it in one full, slow sentence.`);
+    }
+    case "affirm": return AFFIRMATIONS.map(a=>`Repeat after me, slowly, and mean it: “${a}”`);
+    case "structured": return [];
+    case "analyze": return [];
+    case "reset": return [
+      "This is your personal reset. Tell me what you're facing — an interview, a presentation, a difficult conversation — and how you're feeling about it. Speak freely.",
+      ...AFFIRMATIONS.map(a=>`Repeat after me, slowly, and mean it: “${a}”`)];
+    default: return [
+      "Let's begin with a baseline. Talk to me for about a minute — how is your day going, and what would you like to improve about your speaking?",
+      "Now tell me about a recent situation where speaking felt hard. What happened, and how did it feel?",
+      "Last one: describe how you want to sound six months from now. Speak in the present tense, as if it's already true."
+    ];
+  }
+}
+function shuffle(a){ return [...a].sort(()=>Math.random()-.5); }
+
+let sessionPrompts=[];
+function greet(){
+  const n=COACHES[coachId].name;
+  if(modeId==="analyze") return `Hi Thabang, I'm ${n}. Press the folder button below and choose a recording of yourself — a meeting, a presentation, a voice note. I'll transcribe it and coach you on what I hear.`;
+  const modeName=MODES.find(m=>m.id===modeId).t;
+  return `Hi Thabang. I'm ${n}, your speech coach. Today, we're doing a ${modeName} session. Remember the fundamentals. Breathe low. Start slow. Extend your first sounds. And pause… on purpose. Just like I do. Here we go.`;
+}
+function nextPrompt(){
+  if(modeId==="structured"){ structuredNext(); return; }
+  if(modeId==="analyze"){ return; }
+  if(roundIdx>=sessionPrompts.length){ endSession(); return; }
+  const p=sessionPrompts[roundIdx++];
+  coachSays(p,()=>{ startListening(); });
+}
+function endTurn(){
+  /* Capture speech Chrome still holds as "interim" (not yet finalized) */
+  if(interimText.trim()){ turn.text+=interimText+" "; interimText=""; }
+  if(!turn.text.trim()){
+    stopListening();
+    coachSays("Hmm, I didn't catch anything that time. Check that your mic is working — the level bar on the right should move when you talk — then press the mic and try again.",()=>{ startListening(); });
+    return;
+  }
+  stopListening();
+  analyzeTurn();
+  $("interim").textContent="";
+  addMsg("user",turn.text.trim());
+  // accumulate totals
+  const active=Math.max(0,turn.lastT-turn.firstT-turn.pauseMs);
+  total.words+=turn.words; total.fillers+=turn.fillers; total.pauses+=turn.pauses;
+  total.activeMs+=active; total.turns++;
+  const w=turnWpm(); if(w) total.wpmSamples.push(w);
+  const snap={words:turn.words,fillers:turn.fillers,pauses:turn.pauses,wpm:w||0,text:turn.text.trim()};
+  const fb=feedbackFor();
+  resetTurn(); analyzeTurn();
+  /* Conversational modes: let the AI coach respond and drive the conversation.
+     Falls back to rule-based feedback on any error or when no AI is set up. */
+  const conversational=(["free","topics","reset"].includes(modeId)) ||
+    (modeId==="structured" && phaseIdx>=0 && PHASES[phaseIdx].kind==="topics");
+  if(conversational && brainAvailable()){
+    diag(COACHES[coachId].name+" is thinking…");
+    $("statusTxt").innerHTML="🧠 <b>"+COACHES[coachId].name+" is thinking…</b> the first reply of a session can take up to a minute with the free local AI.";
+    const turnMsg = modeId==="reset"
+      ? `PERSONAL RESET SESSION. I just described my situation: "${snap.text}". Respond with exactly one empathetic sentence, then exactly five short personalized first-person present-tense affirmations tailored to my situation, each on its own sentence starting with the words "Repeat after me:". Nothing else.`
+      : `[pace ${snap.wpm||"?"} wpm, ${snap.fillers} fillers, ${snap.pauses} pauses, ${snap.words} words] ${snap.text}`;
+    askCoach(turnMsg)
+      .then(reply=>{
+        diag("");
+        coachSays(reply,()=>{
+          if(modeId==="structured" && Date.now()>=phaseEndT){ setTimeout(nextPrompt,500); }
+          else startListening();
+        });
+      })
+      .catch(e=>{
+        diag("AI error: "+(e.message||e)+" — using standard feedback");
+        coachSays(fb,()=>{ setTimeout(nextPrompt,600); });
+      });
+  }else{
+    coachSays(fb,()=>{ setTimeout(nextPrompt,600); });
+  }
+}
+
+/* ---------- Mic level meter ---------- */
+async function startMeter(){
+  try{
+    if(!micStream) micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const src=audioCtx.createMediaStreamSource(micStream);
+    analyser=audioCtx.createAnalyser(); analyser.fftSize=512;
+    src.connect(analyser);
+    const data=new Uint8Array(analyser.frequencyBinCount);
+    (function loop(){
+      if(!analyser) return;
+      analyser.getByteFrequencyData(data);
+      const avg=data.reduce((a,b)=>a+b,0)/data.length;
+      if(avg>10) lastLoudT=Date.now();
+      $("vfill").style.width=Math.min(100,avg*1.4)+"%";
+      requestAnimationFrame(loop);
+    })();
+  }catch(e){ /* meter is optional */ }
+}
+
+/* ---------- Session lifecycle ---------- */
+$("btnStart").onclick=async()=>{
+  /* Request the mic DURING the click — Chrome only shows the permission
+     prompt reliably when the request is tied to a user gesture. */
+  try{
+    setupLoop=false;
+    if(setupStream){ setupStream.getTracks().forEach(t=>t.stop()); setupStream=null; }
+    micStream=await openMic($("micSel").value||savedMicId());
+  }catch(e){
+    const w=$("warnbox"); w.style.display="block";
+    w.innerHTML="🎤 <b>Microphone access is required.</b> Click <b>Start My Session</b> again and choose <b>Allow</b> when the browser asks near the address bar. (Error: "+e.name+")";
+    window.scrollTo(0,0);
+    return;
+  }
+  /* Load the neural voice before starting (first run downloads the model;
+     afterwards it's cached and near-instant). Falls back to standard voice. */
+  if(ttsEngine==="eleven" && !elKey()){
+    $("voiceStatus").textContent="No ElevenLabs key saved — using the free neural voice for this session.";
+  }
+  /* audio unlock for iOS: must be inside the click gesture */
+  try{
+    if(!audioOut) audioOut=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioOut.state==="suspended") audioOut.resume();
+  }catch(e){}
+  if(IS_MOBILE && ttsEngine!=="eleven"){
+    $("voiceStatus").textContent="On phones the big neural voice model is too heavy — using "+(elKey()?"ElevenLabs":"the standard voice")+".";
+  }
+  if((ttsEngine==="neural" || (ttsEngine==="eleven" && !elKey())) && !kokoro && !IS_MOBILE){
+    const vs=$("voiceStatus");
+    vs.textContent="Preparing the neural voice — first time downloads the model (~90–330 MB)…";
+    const btn=$("btnStart"); btn.disabled=true;
+    try{
+      await loadKokoro(p=>{
+        if(p && p.status==="progress" && p.file && /onnx/i.test(p.file))
+          vs.textContent="Downloading voice model… "+Math.round(p.progress||0)+"%";
+      });
+      vs.textContent="Neural voice ready ✓";
+    }catch(e){
+      ttsEngine="standard";
+      vs.textContent="Neural voice unavailable ("+(e.message||e)+") — using the standard voice instead.";
+    }
+    btn.disabled=false;
+  }
+  $("setup").style.display="none";
+  $("session").style.display="grid";
+  $("btnHome").style.display="inline-block";
+  sessionPrompts=prompts(); roundIdx=0; chatHist=[];
+  if(modeId==="analyze"){ $("btnUpload").style.display="inline-block"; $("micBtn").style.display="none"; $("btnDone").style.display="none"; }
+  if(modeId==="structured"){ phaseIdx=-1; $("phaseCard").style.display="block"; }
+  sessionStart=Date.now();
+  timerInt=setInterval(()=>{
+    const s=Math.floor((Date.now()-sessionStart)/1000);
+    $("timeVal").textContent=Math.floor(s/60)+":"+String(s%60).padStart(2,"0");
+    if(modeId==="structured"&&phaseIdx>=0&&phaseIdx<PHASES.length){
+      const left=Math.max(0,Math.ceil((phaseEndT-Date.now())/1000));
+      $("phaseLeft").textContent=Math.floor(left/60)+":"+String(left%60).padStart(2,"0")+" left in phase";
+    }
+  },1000);
+  startMeter();
+  lastLoudT=Date.now();
+  setInterval(()=>{
+    if(listening && !coachSpeaking && Date.now()-lastLoudT>9000){
+      $("statusTxt").innerHTML="🔇 <b>Your microphone seems silent</b> — no sound is reaching the app. End the session, click 🎤 Test on the setup screen, and pick the microphone that makes the bar move.";
+    }
+  },4000);
+  const g=greet();
+  addMsg("coach",g);
+  say(g,()=>{ setTimeout(nextPrompt,400); });
+};
+
+$("micBtn").onclick=()=>{
+  if(coachSpeaking) silenceCoach();   // skip coach speech, don't auto-advance
+  listening?stopListening():startListening();
+};
+$("btnDone").onclick=()=>{ if(!coachSpeaking) endTurn(); };
+$("btnRepeat").onclick=()=>{
+  const last=sessionPrompts[Math.max(0,roundIdx-1)];
+  if(last) say(last);
+};
+$("btnEnd").onclick=endSession;
+$("btnHome").onclick=()=>location.reload();
+
+function smoothScore(){
+  const wpm=total.wpmSamples.length?Math.round(total.wpmSamples.reduce((a,b)=>a+b,0)/total.wpmSamples.length):0;
+  let score=50;
+  if(wpm>=100&&wpm<=145) score+=25; else if(wpm>0) score+=Math.max(0,25-Math.abs(wpm-122)/3);
+  const fillRate=total.words?total.fillers/total.words:0;
+  score+=Math.max(0,15-fillRate*300);
+  score+=Math.min(10,total.pauses*2);
+  return Math.min(100,Math.round(score));
+}
+function endSession(){
+  stopListening(); silenceCoach(); clearInterval(timerInt);
+  /* capture any turn still in progress so spoken words aren't lost */
+  if(interimText.trim()){ turn.text+=interimText+" "; interimText=""; }
+  if(turn.text.trim()){
+    analyzeTurn();
+    const act=Math.max(0,turn.lastT-turn.firstT-turn.pauseMs);
+    total.words+=turn.words; total.fillers+=turn.fillers; total.pauses+=turn.pauses;
+    total.activeMs+=act; total.turns++;
+    const w2=turnWpm(); if(w2) total.wpmSamples.push(w2);
+    addMsg("user",turn.text.trim());
+    resetTurn();
+  }
+  if(micStream){ micStream.getTracks().forEach(t=>t.stop()); }
+  analyser=null;
+  const wpm=total.wpmSamples.length?Math.round(total.wpmSamples.reduce((a,b)=>a+b,0)/total.wpmSamples.length):0;
+  const score=total.turns?smoothScore():0;
+  $("sScore").textContent=score||"–";
+  $("sWpm").textContent=wpm||"–";
+  $("sWords").textContent=total.words;
+  $("sFill").textContent=total.fillers;
+  $("sPause").textContent=total.pauses;
+  let fb;
+  if(!total.turns) fb="No speech recorded this session. Next time, press the mic and give it a try — even one minute of practice counts.";
+  else{
+    fb=`You completed ${total.turns} round${total.turns>1?"s":""} and spoke ${total.words} words. `;
+    fb+= wpm>=100&&wpm<=145 ? `Your average pace of ${wpm} wpm sat right in the smooth zone — excellent control. `
+       : wpm>145 ? `Your average pace of ${wpm} wpm is above the smooth zone — tomorrow, focus on extending your vowels and pausing at punctuation. `
+       : wpm>0 ? `Your average pace of ${wpm} wpm was unhurried — now layer in projection and energy. ` : "";
+    fb+= total.fillers===0 ? "Zero fillers across the whole session is outstanding. "
+       : `You used ${total.fillers} filler words — each one is an opportunity for a powerful pause instead. `;
+    fb+="Consistency is what rewires the pattern. Same time tomorrow?";
+  }
+  $("sFb").textContent=fb;
+  saveHistory(score,wpm);
+  renderHistory();
+  $("overlay").style.display="flex";
+}
+
+/* ---------- Progress history (persists between sessions) ---------- */
+function saveHistory(score,wpm){
+  if(!total.turns) return;
+  try{
+    const h=JSON.parse(localStorage.getItem("bs_history")||"[]");
+    h.push({d:new Date().toISOString().slice(0,10),mode:modeId,score,wpm,words:total.words,fillers:total.fillers});
+    localStorage.setItem("bs_history",JSON.stringify(h.slice(-30)));
+  }catch(e){}
+}
+function renderHistory(){
+  let h=[]; try{ h=JSON.parse(localStorage.getItem("bs_history")||"[]"); }catch(e){}
+  if(h.length<2) return;
+  const el=$("sHist");
+  el.innerHTML="<h3 style='color:var(--accent);font-size:14px;margin-bottom:6px'>RECENT SESSIONS</h3>";
+  h.slice(-6).reverse().forEach(r=>{
+    const d=document.createElement("div");
+    d.className="histline";
+    d.innerHTML=`<span>${r.d} · ${MODES.find(m=>m.id===r.mode)?.t||r.mode}</span><span>score ${r.score} · ${r.wpm||"–"} wpm</span>`;
+    el.appendChild(d);
+  });
+}
+/* ============================================================
+   COACH INTELLIGENCE — local AI (WebLLM) + optional Claude API
+   ============================================================ */
+let llmEngine=null, llmLoading=null, chatHist=[];
+function apiKey(){ try{ return localStorage.getItem("bs_apikey")||""; }catch(e){ return ""; } }
+function brainAvailable(){ return !!apiKey() || !!llmEngine; }
+function coachSystemPrompt(){
+  const c=COACHES[coachId];
+  return `You are ${c.name}, a ${c.style==="warm"?"warm, encouraging":"calm, steady, direct"} professional speech coach in the Bang Speaks app, coaching Thabang by voice.
+Method (always coach toward these): pace of 100-140 words per minute; intentional pauses instead of filler words; steady low breathing and airflow; extend the first sound of difficult words; finish every word fully; identity-based confidence (speak as the calm speaker you are becoming).
+Each user message may start with bracketed live metrics like [pace 152 wpm, 3 fillers, 1 pauses, 80 words] measured from their actual speech — use them for specific feedback but don't repeat the brackets.
+Style rules: reply in 2-4 short sentences of plain spoken text (it will be read aloud - no lists, no markdown, no emojis, no stage directions). Flow naturally through: a brief acknowledgment, one specific observation, one concrete instruction, then a question or short next task — but NEVER label or announce these parts (never say the words "observation", "instruction", or "structure"). Just speak like a person. Use contractions and a natural spoken rhythm, the way a real coach talks across the table. Be encouraging but honest.
+CRITICAL - model the method in your own writing, because your words are spoken aloud and each comma and ellipsis becomes a real pause: use short sentences. Use commas to create breath points. Occasionally use an ellipsis… right before the word that matters. Never write long breathless sentences. You must sound exactly like the calm, deliberate speaker you are training the user to become.
+If the user describes an upcoming challenge and asks for a reset or affirmations, respond with one empathetic sentence, then exactly five short personalized first-person present-tense affirmations, each introduced with "Repeat after me:".
+OFF-TOPIC RULE: if the user asks about anything unrelated to speaking or communication (general knowledge, recipes, math, news, trivia), do NOT answer the question at all. Warmly decline in one short sentence and steer straight back to the speaking practice.
+EMOTIONAL RULE: if the user expresses discouragement, fear, shame, or wanting to give up, drop the coaching structure entirely for that reply. Lead with genuine empathy, normalize the struggle, remind them that progress comes from consistent practice and that setbacks are part of rewiring speech, and offer one small, gentle next step. Never critique their wording or assign a mechanical drill in that moment.`;
+}
+async function askCoach(userContent){
+  chatHist.push({role:"user",content:userContent});
+  if(chatHist.length>16) chatHist=chatHist.slice(-16);
+  let reply;
+  if(apiKey()){
+    const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+      headers:{"content-type":"application/json","x-api-key":apiKey(),
+        "anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:350,
+        system:coachSystemPrompt(),messages:chatHist})});
+    if(!r.ok) throw new Error("Claude API error "+r.status);
+    const j=await r.json(); reply=(j.content&&j.content[0]&&j.content[0].text)||"";
+  }else{
+    const out=await llmEngine.chat.completions.create({
+      messages:[{role:"system",content:coachSystemPrompt()},...chatHist],
+      temperature:0.7,max_tokens:240});
+    reply=out.choices[0].message.content;
+  }
+  reply=(reply||"").replace(/[*#_`]/g,"").trim();
+  chatHist.push({role:"assistant",content:reply});
+  return reply;
+}
+async function loadLocalLLM(){
+  const st=$("brainStatus");
+  if(IS_MOBILE){ st.textContent="The free local AI needs a desktop computer — on your phone, paste a Claude API key instead."; return; }
+  if(llmEngine||llmLoading) return;
+  llmLoading=(async()=>{
+    st.textContent="Loading local AI engine…";
+    const webllm=await import("https://esm.run/@mlc-ai/web-llm");
+    llmEngine=await webllm.CreateMLCEngine("Llama-3.2-3B-Instruct-q4f16_1-MLC",{
+      initProgressCallback:p=>{ st.textContent="Local AI: "+(p.text||Math.round((p.progress||0)*100)+"%"); }
+    });
+    brainStatusRefresh();
+  })();
+  llmLoading.catch(e=>{ llmLoading=null; st.textContent="Local AI failed to load: "+(e.message||e); });
+  return llmLoading;
+}
+function brainStatusRefresh(){
+  const st=$("brainStatus");
+  if(apiKey()) st.textContent="🧠 Claude API connected — full conversational coaching enabled.";
+  else if(llmEngine) st.textContent="🧠 Free local AI loaded — conversational coaching enabled.";
+  else st.textContent="Basic mode: drills and rule-based feedback work; add AI below for open conversation and personal affirmations.";
+}
+
+/* ============================================================
+   STRUCTURED 30-MINUTE SESSION
+   ============================================================ */
+const PHASES=[
+  {name:"Breathing warm-up", secs:180, kind:"warmup"},
+  {name:"Technique drill",   secs:480, kind:"pacing"},
+  {name:"Applied practice",  secs:720, kind:"topics"},
+  {name:"Feared words",      secs:180, kind:"feared"},
+  {name:"Affirmation close", secs:240, kind:"affirm"}
+];
+let phaseIdx=-1, phaseEndT=0, phasePool=[];
+function poolFor(kind){
+  switch(kind){
+    case "warmup": return [
+      "Breathe in through your nose for four counts… hold for four… and out slowly through your mouth for six. Do that three times, then say, slowly: I set the pace of this room.",
+      "Drop your shoulders, loosen your jaw. Hum gently for three seconds, then read this slowly: My voice is steady, my breath is low, my pace is mine."];
+    case "pacing": return PASSAGES.map(p=>`Read this passage aloud, slowly and deliberately. Extend the first sound of each sentence and pause fully at every full stop:\n\n“${p}”`);
+    case "topics": return shuffle(TOPICS);
+    case "feared": { const w=fearedWords();
+      return w.length? w.map(x=>`Let's work on the word “${x}”. Breathe out gently, then say it three times, stretching the very first sound. Then use it in one full, slow sentence.`)
+        : ["Let's practise common tricky words: specifically, statistics, particularly. Say each one three times — slowly, stretching the first sound."]; }
+    case "affirm": return AFFIRMATIONS.map(a=>`Repeat after me, slowly, and mean it: “${a}”`);
+    default: return TOPICS;
+  }
+}
+function updatePhaseUI(){
+  if(phaseIdx>=0&&phaseIdx<PHASES.length) $("phaseName").textContent=(phaseIdx+1)+" / "+PHASES.length+" · "+PHASES[phaseIdx].name;
+}
+function structuredNext(){
+  const now=Date.now();
+  if(phaseIdx<0 || now>=phaseEndT || !phasePool.length){
+    phaseIdx++;
+    if(phaseIdx>=PHASES.length){ endSession(); return; }
+    const ph=PHASES[phaseIdx];
+    phaseEndT=now+ph.secs*1000;
+    phasePool=poolFor(ph.kind).slice();
+    updatePhaseUI();
+    const intro=phaseIdx===0?"":"Good. Next phase: "+ph.name+". ";
+    coachSays(intro+phasePool.shift(),()=>{ startListening(); });
+  }else{
+    coachSays(phasePool.shift(),()=>{ startListening(); });
+  }
+}
+
+/* ============================================================
+   RECORDING ANALYSIS — Whisper transcription in the browser
+   ============================================================ */
+let whisper=null, whisperLoading=null;
+async function loadWhisper(){
+  if(whisper) return whisper;
+  if(!whisperLoading){
+    whisperLoading=(async()=>{
+      const {pipeline}=await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.1/+esm");
+      const prog=p=>{ if(p&&p.status==="progress"&&/onnx/i.test(p.file||"")) diag("Downloading transcription model… "+Math.round(p.progress||0)+"%"); };
+      try{ whisper=await pipeline("automatic-speech-recognition","onnx-community/whisper-base.en",{device:"webgpu",dtype:"fp32",progress_callback:prog}); }
+      catch(e){ whisper=await pipeline("automatic-speech-recognition","onnx-community/whisper-base.en",{progress_callback:prog}); }
+      return whisper;
+    })();
+    whisperLoading.catch(()=>{ whisperLoading=null; });
+  }
+  return whisperLoading;
+}
+async function decodeTo16k(file){
+  const buf=await file.arrayBuffer();
+  const ac=new (window.AudioContext||window.webkitAudioContext)();
+  const audio=await ac.decodeAudioData(buf); ac.close();
+  const off=new OfflineAudioContext(1,Math.ceil(audio.duration*16000),16000);
+  const src=off.createBufferSource(); src.buffer=audio; src.connect(off.destination); src.start();
+  return (await off.startRendering()).getChannelData(0);
+}
+async function analyzeFile(file){
+  addMsg("user","📁 "+file.name);
+  try{
+    diag("Preparing transcription model…");
+    await loadWhisper();
+    diag("Decoding audio…");
+    const pcm=await decodeTo16k(file);
+    const durS=pcm.length/16000;
+    if(durS>720){ coachSays("That recording is over twelve minutes. For a focused analysis, please trim it to the key section — under ten minutes works best."); diag(""); return; }
+    diag("Transcribing — roughly "+Math.max(1,Math.round(durS/60))+" min of audio, please wait…");
+    let res;
+    try{ res=await whisper(pcm,{return_timestamps:"word",chunk_length_s:30,stride_length_s:5}); }
+    catch(e){ res=await whisper(pcm,{return_timestamps:true,chunk_length_s:30,stride_length_s:5}); }
+    const chunks=(res.chunks||[]).filter(c=>c.text&&c.text.trim()&&c.timestamp&&c.timestamp[0]!=null);
+    const text=(res.text||chunks.map(c=>c.text).join("")).trim();
+    if(!text){ coachSays("I couldn't detect any speech in that recording. Check the file and try again."); diag(""); return; }
+    let pauses=0, pauseS=0;
+    for(let i=1;i<chunks.length;i++){
+      const prevEnd=chunks[i-1].timestamp[1], curStart=chunks[i].timestamp[0];
+      if(prevEnd!=null&&curStart!=null){ const gap=curStart-prevEnd; if(gap>1.2){ pauses++; pauseS+=gap; } }
+    }
+    const nWords=text.split(/\s+/).length;
+    const t0=chunks.length?chunks[0].timestamp[0]:0;
+    const tEnd=chunks.length?(chunks[chunks.length-1].timestamp[1]??durS):durS;
+    const active=Math.max(5,(tEnd-t0)-pauseS);
+    const wpm=Math.round(nWords/(active/60));
+    const nFill=countFillers(text);
+    const stats=`Length ${Math.round(durS)}s · ${nWords} words · pace ≈ ${wpm} wpm · ${nFill} filler words · ${pauses} long pauses`;
+    addMsg("coach","📊 "+stats+"\n\nTranscript:\n"+(text.length>1200?text.slice(0,1200)+"…":text));
+    diag("");
+    let commentary=null;
+    if(brainAvailable()){
+      diag(COACHES[coachId].name+" is reviewing your recording…");
+      try{ commentary=await askCoach(`I uploaded a recording of myself. Metrics: ${stats}. Transcript excerpt: "${text.slice(0,1200)}". Coach me on my delivery.`); }catch(e){}
+      diag("");
+    }
+    if(!commentary){
+      commentary=(wpm>150?`Your average pace was ${wpm} words per minute — above the smooth zone. Practise pausing at every full stop. `:
+        wpm>=100?`Your average pace of ${wpm} words per minute sits in the smooth zone — good control. `:
+        `Your pace of ${wpm} words per minute is unhurried — now add energy and projection. `)+
+        (nFill===0?"No filler words — excellent. ":`I counted ${nFill} filler words — replace each with a silent pause. `)+
+        (pauses>=2?`${pauses} deliberate pauses — that's what commands a room.`:"Work on adding full, intentional pauses between ideas.");
+    }
+    coachSays(commentary);
+  }catch(e){
+    diag("");
+    coachSays("Something went wrong analyzing that file: "+(e.message||e)+". Try a common format like MP3, WAV, or M4A.");
+  }
+}
+
+/* wiring for the new features (kept at end of script — after all declarations) */
+$("btnUpload").onclick=()=>$("fileInput").click();
+$("fileInput").onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) analyzeFile(f); e.target.value=""; };
+$("btnBrainLocal").onclick=loadLocalLLM;
+$("btnKeySave").onclick=()=>{
+  const k=$("apiKeyInput").value.trim();
+  try{ if(k) localStorage.setItem("bs_apikey",k); else localStorage.removeItem("bs_apikey"); }catch(e){}
+  $("apiKeyInput").value="";
+  brainStatusRefresh();
+};
+brainStatusRefresh();
+
+/* summary can be dismissed: ✕ button, click outside, or Escape */
+function closeSummary(){ $("overlay").style.display="none"; }
+$("btnCloseSummary").onclick=closeSummary;
+$("overlay").onclick=e=>{ if(e.target===$("overlay")) closeSummary(); };
+document.addEventListener("keydown",e=>{ if(e.key==="Escape" && $("overlay").style.display==="flex") closeSummary(); });
+
+/* voice character picker + preview (choice saved per coach) */
+try{ const m=kvMap()[coachId]; if(m) $("kvoiceSel").value=m; }catch(e){}
+$("kvoiceSel").onchange=()=>{
+  const v=$("kvoiceSel").value;
+  try{
+    if(v==="auto") localStorage.setItem("bs_kvoice2","{}");
+    else{ const map=kvMap(); map[/^(am|bm)_/.test(v)?"marcus":"zola"]=v; localStorage.setItem("bs_kvoice2",JSON.stringify(map)); }
+  }catch(e){}
+};
+$("btnElSave").onclick=()=>{
+  const k=$("elKeyInput").value.trim();
+  try{ if(k) localStorage.setItem("bs_elkey",k); else localStorage.removeItem("bs_elkey"); }catch(e){}
+  $("elKeyInput").value="";
+  $("voiceStatus").textContent=elKey()?"🌟 ElevenLabs key saved — select the ElevenLabs engine above and press Preview.":"ElevenLabs key removed.";
+};
+if(elKey()&&ttsEngine==="eleven") $("voiceStatus").textContent="🌟 ElevenLabs connected.";
+$("btnVoicePreview").onclick=async()=>{
+  const vs=$("voiceStatus");
+  if(ttsEngine==="standard"){ vs.textContent="Previewing the standard browser voice — select Neural or ElevenLabs for the human-like voices."; }
+  if((ttsEngine==="neural" || (ttsEngine==="eleven" && !elKey())) && !kokoro){
+    vs.textContent="Loading neural voice…";
+    try{ await loadKokoro(p=>{ if(p&&p.status==="progress") vs.textContent="Downloading voice model… "+Math.round(p.progress||0)+"%"; }); vs.textContent=""; }
+    catch(e){ vs.textContent="Neural voice unavailable: "+(e.message||e); return; }
+  }
+  say("Here's how we speak, in this room. Slowly. With intention. Notice the pause… before the word that matters. That's your pace too.");
+};
+
+/* QA hook: simulate a completed spoken turn; optional wpm sets implied pace */
+window.__simulateTurn=(t,wpm)=>{
+  const n=t.split(/\s+/).length;
+  const ms=wpm ? Math.max(3200, n*60000/wpm) : Math.max(5000, n*500);
+  turn.text=t+" ";
+  turn.firstT=Date.now()-ms;
+  turn.lastT=Date.now();
+  endTurn();
+};
+
+/* Sentinel: set ONLY if the entire script executed without a runtime error.
+   Any load-time failure leaves this undefined and shows a visible warning. */
+window.__appReady=true;
+</script>
+<script>
+if(!window.__appReady){
+  const w=document.getElementById("warnbox");
+  if(w){ w.style.display="block"; w.textContent="⚠ The app failed to initialize — please refresh (Ctrl+F5). If this persists, tell your developer: check the browser console."; }
+}
+</script>
+</body>
+</html>
