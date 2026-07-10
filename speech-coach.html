@@ -178,6 +178,7 @@
         <button class="btn ghost small" id="btnBrainLocal" type="button">⬇ Download free local AI (~1.8 GB, one-time)</button>
         <input type="password" id="apiKeyInput" placeholder="…or paste a Claude API key (sk-ant-…)" style="flex:1;min-width:220px">
         <button class="btn ghost small" id="btnKeySave" type="button">Save key</button>
+        <button class="btn ghost small" id="btnPhoneSetup" type="button">📲 Copy phone setup link</button>
       </div>
       <div style="font-size:12px;color:var(--muted);margin-top:8px">Without this, all drills and feedback still work — the coach just can't hold an open conversation or write personal affirmations. The key is stored only in your browser and sent only to Anthropic.</div>
     </div>
@@ -735,6 +736,11 @@ function startListening(){
         startListening();
         return;
       }
+      if(IS_MOBILE && !elKey()){
+        $("statusTxt").innerHTML="<b>⚠ Live speech recognition isn't available here.</b> Two fixes: open this same address in <b>Safari</b> (works there), or add your ElevenLabs key on the setup screen to enable tap-to-talk in this app.";
+        diag("engine: no response (mobile, no ElevenLabs key saved on this device)");
+        return;
+      }
       const canLocal=(typeof SR.available==="function" && typeof SR.install==="function" && !useLocal);
       $("statusTxt").innerHTML="<b>⚠ The speech engine isn't responding.</b> "+
         (location.protocol==="file:"
@@ -964,8 +970,9 @@ $("btnStart").onclick=async()=>{
     if(audioOut.state==="suspended") audioOut.resume();
   }catch(e){}
   /* iPhone home-screen apps can't use live speech recognition — go tap-to-talk */
-  if(IS_MOBILE && (!SR || navigator.standalone===true) && elKey()){
-    enableRecordedMode(!SR?"no live recognition on this device":"installed app mode");
+  if(IS_MOBILE && (!SR || navigator.standalone===true)){
+    if(elKey()) enableRecordedMode(!SR?"no live recognition on this device":"installed app mode");
+    else $("voiceStatus").textContent="Tip: the installed app needs your ElevenLabs key for speech input (use the setup link from your computer), or open this address in Safari instead.";
   }
   if(IS_MOBILE && ttsEngine!=="eleven"){
     $("voiceStatus").textContent="On phones the big neural voice model is too heavy — using "+(elKey()?"ElevenLabs":"the standard voice")+".";
@@ -1284,6 +1291,29 @@ $("btnKeySave").onclick=()=>{
   try{ if(k) localStorage.setItem("bs_apikey",k); else localStorage.removeItem("bs_apikey"); }catch(e){}
   $("apiKeyInput").value="";
   brainStatusRefresh();
+};
+/* ---- Phone setup transfer: import keys from a #setup= link ---- */
+const PUBLIC_URL="https://tbang123.github.io/bang-speaks/speech-coach.html";
+try{
+  if(location.hash.startsWith("#setup=")){
+    const p=JSON.parse(atob(location.hash.slice(7)));
+    if(p.el) localStorage.setItem("bs_elkey",p.el);
+    if(p.claude) localStorage.setItem("bs_apikey",p.claude);
+    if(p.engine){ localStorage.setItem("bs_engine",p.engine); ttsEngine=p.engine; $("engineSel").value=p.engine; }
+    history.replaceState(null,"",location.pathname);
+    const w=$("warnbox"); w.style.display="block";
+    w.innerHTML="✅ <b>Setup imported — your keys are now saved on this device.</b> Delete the message containing the link, then press Start My Session.";
+  }
+}catch(e){}
+$("btnPhoneSetup").onclick=async()=>{
+  const payload={};
+  if(elKey()) payload.el=elKey();
+  if(apiKey()) payload.claude=apiKey();
+  payload.engine=ttsEngine;
+  const link=PUBLIC_URL+"#setup="+btoa(JSON.stringify(payload));
+  const note="📲 Link copied! Send it to your phone (e.g. WhatsApp yourself), open it there ONCE, then delete the message — the link contains your API keys.";
+  try{ await navigator.clipboard.writeText(link); $("brainStatus").textContent=note; }
+  catch(e){ window.prompt("Copy this link and send it to your phone (then delete the message — it contains your keys):",link); }
 };
 brainStatusRefresh();
 
