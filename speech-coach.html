@@ -392,8 +392,12 @@ $("micSel").onchange=()=>{ try{localStorage.setItem("bs_micId",$("micSel").value
 if(!SR){
   const w=$("warnbox");
   w.style.display="block";
-  w.textContent="⚠ Your browser doesn't support live speech recognition. Please open this app in Google Chrome for the full experience.";
-  $("btnStart").disabled=true;
+  if(IS_MOBILE){
+    w.innerHTML="📱 This device doesn't offer live speech recognition — Bang Speaks will use <b>tap-to-talk recording</b> instead. Make sure your ElevenLabs key is saved below (it needs the Speech-to-Text permission).";
+  }else{
+    w.textContent="⚠ Your browser doesn't support live speech recognition. Please open this app in Google Chrome for the full experience.";
+    $("btnStart").disabled=true;
+  }
 } else if(navigator.userAgent.includes("Edg/")){
   const w=$("warnbox");
   w.style.display="block";
@@ -588,6 +592,62 @@ async function switchToOfflineEngine(){
   }
 }
 window.switchToOfflineEngine=switchToOfflineEngine;
+/* ---- Recorded (tap-to-talk) mode: for iPhone home-screen apps and other
+   browsers where live recognition is unavailable. Records the turn with
+   MediaRecorder and transcribes it via ElevenLabs Scribe. ---- */
+let recMode=false, mediaRec=null, recChunks=[];
+function enableRecordedMode(reason){
+  if(recMode) return;
+  recMode=true;
+  diag("tap-to-talk mode: "+reason);
+  $("statusTxt").innerHTML="🎙 <b>Tap-to-talk mode.</b> Press the mic, speak, then press ✔ — your recording is transcribed for coaching.";
+}
+window.__enableRecordedMode=enableRecordedMode;   /* QA hook */
+function startRecorder(){
+  recChunks=[];
+  try{
+    mediaRec=new MediaRecorder(micStream);
+    mediaRec.ondataavailable=e=>{ if(e.data&&e.data.size) recChunks.push(e.data); };
+    mediaRec.start();
+  }catch(e){ diag("recorder error: "+(e.message||e)); }
+}
+function stopRecorder(){
+  return new Promise(res=>{
+    if(!mediaRec||mediaRec.state!=="recording"){ res(null); return; }
+    mediaRec.onstop=()=>res(new Blob(recChunks,{type:mediaRec.mimeType||"audio/webm"}));
+    try{ mediaRec.stop(); }catch(e){ res(null); }
+  });
+}
+async function transcribeTurn(){
+  const blob=await stopRecorder();
+  if(!blob || blob.size<1500) return false;
+  diag("transcribing your recording…");
+  const fd=new FormData();
+  fd.append("model_id","scribe_v1");
+  fd.append("file",blob,"turn."+(blob.type.includes("mp4")?"mp4":"webm"));
+  const r=await fetch("https://api.elevenlabs.io/v1/speech-to-text",{
+    method:"POST",headers:{"xi-api-key":elKey()},body:fd});
+  if(!r.ok){
+    diag("");
+    $("statusTxt").innerHTML="<b>Transcription failed ("+r.status+").</b> "+
+      (r.status===401?"Your ElevenLabs key needs the <b>Speech-to-Text</b> permission — edit the key at elevenlabs.io → API Keys.":"Check your connection and try again.");
+    return "error";
+  }
+  const j=await r.json();
+  const words=(j.words||[]).filter(w=>w.type==="word");
+  turn.text=(j.text||"").trim()+" ";
+  turn.pauses=0; turn.pauseMs=0;
+  if(words.length>1){
+    const span=(words[words.length-1].end-words[0].start)*1000;
+    turn.lastT=Date.now(); turn.firstT=turn.lastT-Math.max(3200,Math.round(span));
+    for(let i=1;i<words.length;i++){
+      const gap=words[i].start-words[i-1].end;
+      if(gap>1.2){ turn.pauses++; turn.pauseMs+=gap*1000; }
+    }
+  }else{ turn.lastT=Date.now(); turn.firstT=turn.lastT-5000; }
+  diag("");
+  return true;
+}
 /* Start recognition on the USER-CHOSEN microphone track when supported
    (Chrome 139+). Falls back to the browser-default mic otherwise. */
 function recogStart(){
@@ -654,13 +714,27 @@ function initRecog(){
   };
 }
 function startListening(){
+  if(recMode){
+    listening=true; resetTurn(); interimText=""; $("interim").textContent="";
+    startRecorder(); updateMicUI(); return;
+  }
+  if(!SR){
+    $("statusTxt").innerHTML="<b>No speech recognition available.</b> Save an ElevenLabs key (with Speech-to-Text permission) on the setup screen to enable tap-to-talk.";
+    listening=false; return;
+  }
   if(!recog) initRecog();
   listening=true; resetTurn(); interimText=""; $("interim").textContent="";
   recogStart();
   updateMicUI();
   clearTimeout(watchdog);
+  if(recMode) return;   /* recorder has no engine watchdog */
   watchdog=setTimeout(()=>{
     if(listening && !recogAlive && !coachSpeaking){
+      if(IS_MOBILE && elKey() && !recMode){
+        enableRecordedMode("live engine not responding");
+        startListening();
+        return;
+      }
       const canLocal=(typeof SR.available==="function" && typeof SR.install==="function" && !useLocal);
       $("statusTxt").innerHTML="<b>⚠ The speech engine isn't responding.</b> "+
         (location.protocol==="file:"
@@ -675,13 +749,15 @@ function startListening(){
 function stopListening(keepFlag){
   if(!keepFlag) listening=false;
   clearTimeout(silenceTimer);
+  if(recMode && keepFlag && mediaRec && mediaRec.state==="recording"){ try{mediaRec.stop();}catch(e){} }
   if(recog){ try{recog.stop();}catch(e){} }
   updateMicUI();
 }
 function updateMicUI(){
   $("micBtn").classList.toggle("listening",listening);
   $("statusTxt").innerHTML = listening
-    ? "🔴 <b>Listening…</b> speak naturally. Pause ~4s or press ✔ when finished."
+    ? (recMode ? "🔴 <b>Recording…</b> speak, then press ✔ I'm done."
+               : "🔴 <b>Listening…</b> speak naturally. Pause ~4s or press ✔ when finished.")
     : "Press the mic to speak.";
 }
 function armSilenceTimer(){
@@ -785,13 +861,24 @@ function nextPrompt(){
   const p=sessionPrompts[roundIdx++];
   coachSays(p,()=>{ startListening(); });
 }
-function endTurn(){
-  /* Capture speech Chrome still holds as "interim" (not yet finalized) */
-  if(interimText.trim()){ turn.text+=interimText+" "; interimText=""; }
-  if(!turn.text.trim()){
-    stopListening();
-    coachSays("Hmm, I didn't catch anything that time. Check that your mic is working — the level bar on the right should move when you talk — then press the mic and try again.",()=>{ startListening(); });
-    return;
+async function endTurn(){
+  if(recMode){
+    if(!listening) return;
+    clearTimeout(silenceTimer); listening=false; updateMicUI();
+    const ok=await transcribeTurn();
+    if(ok==="error"){ return; }   /* statusTxt already explains; user presses mic to retry */
+    if(!ok || !turn.text.trim()){
+      coachSays("Hmm, I didn't catch anything in that recording. Press the mic and try again, speaking a little closer to the phone.",()=>{ startListening(); });
+      return;
+    }
+  }else{
+    /* Capture speech Chrome still holds as "interim" (not yet finalized) */
+    if(interimText.trim()){ turn.text+=interimText+" "; interimText=""; }
+    if(!turn.text.trim()){
+      stopListening();
+      coachSays("Hmm, I didn't catch anything that time. Check that your mic is working — the level bar on the right should move when you talk — then press the mic and try again.",()=>{ startListening(); });
+      return;
+    }
   }
   stopListening();
   analyzeTurn();
@@ -876,6 +963,10 @@ $("btnStart").onclick=async()=>{
     if(!audioOut) audioOut=new (window.AudioContext||window.webkitAudioContext)();
     if(audioOut.state==="suspended") audioOut.resume();
   }catch(e){}
+  /* iPhone home-screen apps can't use live speech recognition — go tap-to-talk */
+  if(IS_MOBILE && (!SR || navigator.standalone===true) && elKey()){
+    enableRecordedMode(!SR?"no live recognition on this device":"installed app mode");
+  }
   if(IS_MOBILE && ttsEngine!=="eleven"){
     $("voiceStatus").textContent="On phones the big neural voice model is too heavy — using "+(elKey()?"ElevenLabs":"the standard voice")+".";
   }
